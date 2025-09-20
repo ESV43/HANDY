@@ -1,0 +1,5 @@
+{
+  "name": "Copy of DigiNotes AI",
+  "description": "An intelligent application that transforms handwritten notes from PDFs into beautifully formatted digital documents, offering output in either PDF or LaTeX formats. It supports batch processing for enhanced productivity.",
+  "requestFramePermissions": []
+}
