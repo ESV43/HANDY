@@ -10,9 +10,10 @@ export interface UploadedFile {
 }
 
 export interface ContentItem {
-    type: 'heading1' | 'heading2' | 'paragraph' | 'bullet_list' | 'numbered_list';
+    type: 'heading1' | 'heading2' | 'paragraph' | 'bullet_list' | 'numbered_list' | 'diagram';
     text: string;
     items: string[];
+    svg?: string;
 }
 
 export interface PdfContent {

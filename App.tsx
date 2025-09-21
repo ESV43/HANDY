@@ -56,17 +56,20 @@ const App: React.FC = () => {
         return images;
     };
     
-    const generatePdf = (data: PdfContent, filename: string) => {
+    const generatePdf = async (data: PdfContent, filename: string) => {
       const { jsPDF } = jspdf;
       const doc = new jsPDF();
       let yPos = 20;
+      const pageMargin = 14;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const textWidth = pageWidth - (pageMargin * 2);
 
       doc.setFontSize(22);
-      doc.text(data.title, 105, yPos, { align: 'center' });
+      doc.text(data.title, pageWidth / 2, yPos, { align: 'center' });
       yPos += 20;
 
-      data.content.forEach(item => {
-          if (yPos > 280) {
+      for (const item of data.content) {
+          if (yPos > 270) {
               doc.addPage();
               yPos = 20;
           }
@@ -74,38 +77,125 @@ const App: React.FC = () => {
               case 'heading1':
                   doc.setFontSize(18);
                   doc.setFont(undefined, 'bold');
-                  doc.text(item.text, 14, yPos);
+                  doc.text(item.text, pageMargin, yPos);
                   yPos += 10;
                   break;
               case 'heading2':
                   doc.setFontSize(14);
                   doc.setFont(undefined, 'bold');
-                  doc.text(item.text, 14, yPos);
+                  doc.text(item.text, pageMargin, yPos);
                   yPos += 8;
                   break;
               case 'paragraph':
                   doc.setFontSize(12);
                   doc.setFont(undefined, 'normal');
-                  const splitText = doc.splitTextToSize(item.text, 180);
-                  doc.text(splitText, 14, yPos);
+                  const splitText = doc.splitTextToSize(item.text, textWidth);
+                  doc.text(splitText, pageMargin, yPos);
                   yPos += (splitText.length * 5) + 5;
                   break;
               case 'bullet_list':
                   doc.setFontSize(12);
                   doc.setFont(undefined, 'normal');
                   item.items.forEach(listItem => {
-                      const splitListItem = doc.splitTextToSize(`• ${listItem}`, 170);
+                      const splitListItem = doc.splitTextToSize(`• ${listItem}`, textWidth - 6);
                       if (yPos > 280) {
                           doc.addPage();
                           yPos = 20;
                       }
-                      doc.text(splitListItem, 20, yPos);
+                      doc.text(splitListItem, pageMargin + 6, yPos);
                       yPos += (splitListItem.length * 5) + 2;
                   });
                   yPos += 5;
                   break;
+              case 'diagram': {
+                    if (!item.svg) break;
+                    
+                    const originalFont = doc.getFont();
+                    const originalFontSize = doc.getFontSize();
+                    
+                    doc.setFontSize(10);
+                    doc.setFont(originalFont.fontName, 'italic');
+                    const splitDescription = doc.splitTextToSize(`Diagram: ${item.text}`, textWidth);
+                    const descriptionHeight = (splitDescription.length * 4) + 5;
+
+                    const svgString = item.svg;
+                    let svgHeight = 50;
+                    const renderWidth = textWidth;
+                    
+                    const widthMatch = svgString.match(/width="([^"]+)"/);
+                    const heightMatch = svgString.match(/height="([^"]+)"/);
+                    const viewBoxMatch = svgString.match(/viewBox="([^"]+)"/);
+
+                    let aspectRatio = 1; 
+                    if (widthMatch && heightMatch) {
+                        const w = parseFloat(widthMatch[1]);
+                        const h = parseFloat(heightMatch[1]);
+                        if (w > 0 && h > 0) aspectRatio = h / w;
+                    } else if (viewBoxMatch) {
+                        const parts = viewBoxMatch[1].split(/\s+/);
+                        if (parts.length === 4) {
+                            const vbWidth = parseFloat(parts[2]);
+                            const vbHeight = parseFloat(parts[3]);
+                            if (vbWidth > 0 && vbHeight > 0) aspectRatio = vbHeight / vbWidth;
+                        }
+                    }
+                    svgHeight = renderWidth * aspectRatio;
+
+                    if (yPos + descriptionHeight + svgHeight > 280) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+
+                    doc.text(splitDescription, pageMargin, yPos);
+                    yPos += descriptionHeight;
+                    
+                    const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+                    const url = URL.createObjectURL(svgBlob);
+                    const img = new Image();
+                    
+                    const promise = new Promise<void>((resolve, reject) => {
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const scale = 2; // Oversample for better quality
+                            canvas.width = renderWidth * scale;
+                            canvas.height = svgHeight * scale;
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                                ctx.scale(scale, scale);
+                                ctx.drawImage(img, 0, 0, renderWidth, svgHeight);
+                                const dataUrl = canvas.toDataURL('image/png');
+                                doc.addImage(dataUrl, 'PNG', pageMargin, yPos, renderWidth, svgHeight);
+                            }
+                            URL.revokeObjectURL(url);
+                            resolve();
+                        };
+                        img.onerror = (err) => {
+                           URL.revokeObjectURL(url);
+                           reject(err);
+                        }
+                        img.src = url;
+                    });
+
+                    try {
+                        await promise;
+                        yPos += svgHeight + 10;
+                    } catch (error) {
+                        console.error("Failed to render SVG:", error);
+                        const errorText = "[Error rendering diagram]";
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'normal');
+                        doc.setTextColor(255, 0, 0);
+                        doc.text(errorText, pageMargin, yPos);
+                        doc.setTextColor(0, 0, 0);
+                        yPos += 10;
+                    }
+                    
+                    doc.setFont(originalFont.fontName, originalFont.fontStyle);
+                    doc.setFontSize(originalFontSize);
+                    break;
+                }
           }
-      });
+      }
       doc.save(`${filename.replace('.pdf', '')}_converted.pdf`);
     };
 
@@ -121,12 +211,12 @@ const App: React.FC = () => {
         URL.revokeObjectURL(url);
     };
 
-    const handleDownload = (fileId: string) => {
+    const handleDownload = async (fileId: string) => {
         const file = files.find(f => f.id === fileId);
         if (!file || !file.output) return;
 
         if (outputFormat === 'pdf' && typeof file.output === 'object') {
-            generatePdf(file.output as PdfContent, file.file.name);
+            await generatePdf(file.output as PdfContent, file.file.name);
         } else if (outputFormat === 'tex' && typeof file.output === 'string') {
             downloadTexFile(file.output, file.file.name);
         }
