@@ -93,6 +93,24 @@ const App: React.FC = () => {
                   doc.text(splitText, pageMargin, yPos);
                   yPos += (splitText.length * 5) + 5;
                   break;
+              case 'equation': {
+                  doc.setFontSize(12);
+                  doc.setFont(undefined, 'normal');
+                  
+                  const splitEquation = doc.splitTextToSize(item.text, textWidth);
+                  const equationHeight = (splitEquation.length * 5);
+
+                  if (yPos + equationHeight + 6 > 280) { // 6 is for padding
+                      doc.addPage();
+                      yPos = 20;
+                  }
+
+                  yPos += 3; // Padding before
+                  doc.text(splitEquation, pageWidth / 2, yPos, { align: 'center' });
+                  yPos += equationHeight;
+                  yPos += 3; // Padding after
+                  break;
+              }
               case 'bullet_list':
                   doc.setFontSize(12);
                   doc.setFont(undefined, 'normal');

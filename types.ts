@@ -10,7 +10,7 @@ export interface UploadedFile {
 }
 
 export interface ContentItem {
-    type: 'heading1' | 'heading2' | 'paragraph' | 'bullet_list' | 'numbered_list' | 'diagram';
+    type: 'heading1' | 'heading2' | 'paragraph' | 'bullet_list' | 'numbered_list' | 'diagram' | 'equation';
     text: string;
     items: string[];
     svg?: string;
